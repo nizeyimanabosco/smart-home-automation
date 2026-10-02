@@ -1,17 +1,20 @@
 # ESP32 RGB light
 
 Each ESP32 polls the cloud API for the saved on/off state and color of one
-light. Use one board per light; set `LIGHT_ID` in the sketch to `1`, `2`, or
-`3` to match Living room, Kitchen, or Bedroom in the dashboard.
+light. Use one board per light. The first three seeded lights have IDs `1`,
+`2`, and `3`; lights added from the dashboard have a generated ID shown with
+their one-time device key.
 
 ## Configure
 
 1. Install Arduino IDE, the ESP32 board support package, and ArduinoJson 7.
-2. Copy `secrets.example.h` to `secrets.h`. Enter the Wi-Fi details, the
-   Render API URL, and the matching per-light `DEVICE_API_KEY_1`, `_2`, or
-   `_3` from the API environment. `secrets.h` is ignored by Git.
-3. Set `LIGHT_ID` in the sketch for this board and upload it.
-4. Select the correct GPIO pins and common-anode setting for the LED hardware.
+2. Add the light in the dashboard, then save the displayed light ID and
+   one-time device key. For the original three lights, use the matching
+   `DEVICE_API_KEY_1`, `_2`, or `_3` from the API environment.
+3. Copy `secrets.example.h` to `secrets.h`. Enter the Wi-Fi details, Render
+   API URL, and device key. `secrets.h` is ignored by Git.
+4. Set `LIGHT_ID` in the sketch to the ID shown by the dashboard and upload it.
+5. Select the correct GPIO pins and common-anode setting for the LED hardware.
 
 Use a low-voltage RGB LED and suitable current limiting, or a correctly rated
 MOSFET driver for a low-voltage LED strip. Never connect an LED strip or a

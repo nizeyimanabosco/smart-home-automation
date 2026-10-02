@@ -374,6 +374,131 @@ h1 {
   gap: 18px;
 }
 
+.add-light-panel,
+.device-key-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  align-items: center;
+  gap: 24px;
+  margin-top: 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(20, 27, 47, 0.82);
+  padding: 20px;
+}
+
+.add-light-panel h2,
+.device-key-panel h2 {
+  margin: 0 0 7px;
+  font-family: "Manrope", sans-serif;
+  font-size: 19px;
+}
+
+.add-light-panel .eyebrow,
+.device-key-panel .eyebrow {
+  margin-bottom: 7px;
+}
+
+.add-light-panel .summary,
+.device-key-copy > p:not(.eyebrow) {
+  color: #a2aabd;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.add-light-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  align-items: end;
+  gap: 10px;
+}
+
+.add-light-form > label {
+  display: grid;
+  gap: 6px;
+  color: #b9c0d0;
+  font-size: 11px;
+}
+
+.add-light-form input:not([type="color"]) {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid rgba(164, 176, 211, 0.2);
+  border-radius: 8px;
+  background: rgba(9, 14, 28, 0.7);
+  padding: 0 9px;
+  color: #f3f4f8;
+  font: inherit;
+  font-size: 12px;
+}
+
+.new-light-color {
+  grid-column: 1;
+}
+
+.new-light-color input {
+  width: 32px;
+  height: 30px;
+  border: 1px solid rgba(164, 176, 211, 0.2);
+  border-radius: 7px;
+  background: transparent;
+  padding: 2px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.add-light-form .form-actions {
+  grid-column: 2 / -1;
+}
+
+.device-key-panel {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.device-key-copy > p:not(.eyebrow) {
+  margin-bottom: 10px;
+}
+
+.device-credentials {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.device-credentials > div {
+  display: grid;
+  grid-template-columns: 115px minmax(0, 1fr);
+  gap: 10px;
+  align-items: baseline;
+}
+
+.device-credentials dt {
+  color: #8991a7;
+  font-size: 11px;
+}
+
+.device-credentials dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: #e4e7ef;
+  font-size: 11px;
+}
+
+.device-credentials code {
+  border-radius: 4px;
+  background: rgba(7, 12, 24, 0.72);
+  padding: 3px 5px;
+  user-select: all;
+}
+
+.device-key-panel > .form-actions {
+  align-self: end;
+}
+
 .sign-out {
   border: 0;
   background: transparent;
@@ -553,6 +678,25 @@ h1 {
   .light-grid {
     grid-template-columns: 1fr;
     gap: 12px;
+  }
+
+  .add-light-panel,
+  .device-key-panel {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    padding: 16px;
+  }
+
+  .add-light-form {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .add-light-form .form-actions {
+    grid-column: 1 / -1;
+  }
+
+  .device-key-panel > .form-actions {
+    align-self: auto;
   }
 
   .light-card {

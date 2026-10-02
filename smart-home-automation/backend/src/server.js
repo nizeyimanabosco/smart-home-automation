@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import cors from "cors";
 import "dotenv/config";
 import express from "express";
@@ -61,15 +61,26 @@ function requireUser(req, res, next) {
 }
 
 function requireDevice(req, res, next) {
-  const deviceKey = deviceApiKeys.get(req.params.id);
   const authorization = req.get("authorization") ?? "";
   const [scheme, token] = authorization.split(" ");
 
-  if (!deviceKey || scheme !== "Bearer" || !token || !safeEqual(token, deviceKey)) {
+  if (scheme !== "Bearer" || !token) {
     return res.status(401).json({ error: "This device is not authorized." });
   }
 
-  next();
+  pool.query("SELECT device_key_hash FROM lights WHERE id = $1", [req.params.id])
+    .then((result) => {
+      if (result.rowCount === 0 || !result.rows[0].device_key_hash) {
+        return res.status(401).json({ error: "This device is not authorized." });
+      }
+
+      const suppliedHash = createHash("sha256").update(token).digest("hex");
+      if (!safeEqual(suppliedHash, result.rows[0].device_key_hash)) {
+        return res.status(401).json({ error: "This device is not authorized." });
+      }
+      next();
+    })
+    .catch(next);
 }
 
 app.use(cors({
@@ -119,6 +130,34 @@ app.get("/api/lights", requireUser, async (req, res, next) => {
       'SELECT id, name, room, is_on AS "isOn", color, device_last_seen_at AS "deviceLastSeenAt" FROM lights ORDER BY id',
     );
     res.json(result.rows);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/lights", requireUser, async (req, res, next) => {
+  const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+  const room = typeof req.body?.room === "string" ? req.body.room.trim() : "";
+  const color = req.body?.color ?? "#FFC857";
+
+  if (
+    name.length < 1 || name.length > 60 ||
+    room.length < 1 || room.length > 60 ||
+    typeof color !== "string" || !/^#[0-9a-f]{6}$/i.test(color)
+  ) {
+    return res.status(400).json({ error: "Enter a light name and room (1-60 characters) and a valid six-digit hex color." });
+  }
+
+  const id = randomUUID();
+  const deviceKey = randomBytes(32).toString("base64url");
+  const deviceKeyHash = createHash("sha256").update(deviceKey).digest("hex");
+
+  try {
+    const result = await pool.query(
+      'INSERT INTO lights (id, name, room, color, device_key_hash) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, room, is_on AS "isOn", color, device_last_seen_at AS "deviceLastSeenAt"',
+      [id, name, room, color.toUpperCase(), deviceKeyHash],
+    );
+    res.status(201).json({ light: result.rows[0], deviceKey });
   } catch (error) {
     next(error);
   }
@@ -211,13 +250,20 @@ async function start() {
   `);
   await pool.query("ALTER TABLE lights ADD COLUMN IF NOT EXISTS color CHAR(7) NOT NULL DEFAULT '#FFC857'");
   await pool.query("ALTER TABLE lights ADD COLUMN IF NOT EXISTS device_last_seen_at TIMESTAMPTZ");
-  await pool.query(`
-    INSERT INTO lights (id, name, room) VALUES
-      ('1', 'Living room', 'Downstairs'),
-      ('2', 'Kitchen', 'Downstairs'),
-      ('3', 'Bedroom', 'Upstairs')
-    ON CONFLICT (id) DO NOTHING
-  `);
+  await pool.query("ALTER TABLE lights ADD COLUMN IF NOT EXISTS device_key_hash TEXT");
+  const initialLights = [
+    ["1", "Living room", "Downstairs"],
+    ["2", "Kitchen", "Downstairs"],
+    ["3", "Bedroom", "Upstairs"],
+  ];
+  for (const [id, name, room] of initialLights) {
+    const legacyDeviceKey = deviceApiKeys.get(id);
+    const deviceKeyHash = createHash("sha256").update(legacyDeviceKey).digest("hex");
+    await pool.query(
+      "INSERT INTO lights (id, name, room, device_key_hash) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO UPDATE SET device_key_hash = COALESCE(lights.device_key_hash, EXCLUDED.device_key_hash)",
+      [id, name, room, deviceKeyHash],
+    );
+  }
 
   app.listen(port, () => {
     console.log(`Smart home API listening on http://localhost:${port}`);

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
@@ -77,6 +77,60 @@ function Login({ onLogin }) {
   );
 }
 
+function AddLightForm({ onCreate, onCancel }) {
+  const [name, setName] = useState("");
+  const [room, setRoom] = useState("");
+  const [color, setColor] = useState("#FFC857");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submit(event) {
+    event.preventDefault();
+    setSubmitting(true);
+    setError("");
+    try {
+      await onCreate({ name, room, color });
+    } catch (createError) {
+      setError(createError.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <section className="add-light-panel" aria-labelledby="add-light-heading">
+      <div>
+        <p className="eyebrow">PAIR A NEW ESP32</p>
+        <h2 id="add-light-heading">Add a light</h2>
+        <p className="summary">Create a light, then copy its unique key into that device.</p>
+      </div>
+      <form className="add-light-form" onSubmit={submit}>
+        <label>
+          Light name
+          <input maxLength={60} value={name} onChange={(event) => setName(event.target.value)} placeholder="Hallway" required />
+        </label>
+        <label>
+          Room
+          <input maxLength={60} value={room} onChange={(event) => setRoom(event.target.value)} placeholder="Upstairs" required />
+        </label>
+        <label className="new-light-color">
+          Color
+          <input type="color" value={color} onChange={(event) => setColor(event.target.value.toUpperCase())} />
+        </label>
+        {error && <p className="error-message" role="alert">{error}</p>}
+        <div className="form-actions">
+          <button className="button button-on" type="submit" disabled={submitting}>
+            {submitting ? "Adding..." : "Add light"}
+          </button>
+          <button className="button button-off" type="button" onClick={onCancel} disabled={submitting}>
+            Cancel
+          </button>
+        </div>
+      </form>
+    </section>
+  );
+}
+
 export default function App() {
   const [token, setToken] = useState(() => sessionStorage.getItem("smart-home-token") ?? "");
   const [lights, setLights] = useState([]);
@@ -86,7 +140,14 @@ export default function App() {
   const [loading, setLoading] = useState(Boolean(token));
   const [error, setError] = useState("");
   const [connectionError, setConnectionError] = useState(false);
+  const [showAddLight, setShowAddLight] = useState(false);
+  const [newDevice, setNewDevice] = useState(null);
+  const lightsRef = useRef(lights);
   const activeCount = lights.filter((light) => light.isOn).length;
+
+  useEffect(() => {
+    lightsRef.current = lights;
+  }, [lights]);
 
   function signOut() {
     sessionStorage.removeItem("smart-home-token");
@@ -95,6 +156,8 @@ export default function App() {
     setColorDrafts({});
     setError("");
     setConnectionError(false);
+    setShowAddLight(false);
+    setNewDevice(null);
   }
 
   useEffect(() => {
@@ -148,12 +211,13 @@ export default function App() {
           signal: controller.signal,
         });
         setConnectionError(false);
+        setError("");
         setLights((current) =>
           JSON.stringify(current) === JSON.stringify(latestLights) ? current : latestLights,
         );
         setColorDrafts((current) => Object.fromEntries(
           latestLights.map((light) => {
-            const savedColor = lights.find((item) => item.id === light.id)?.color;
+            const savedColor = lightsRef.current.find((item) => item.id === light.id)?.color;
             const draft = current[light.id];
             return [light.id, draft && draft !== savedColor ? draft : light.color];
           }),
@@ -175,7 +239,7 @@ export default function App() {
       controller.abort();
       window.clearInterval(interval);
     };
-  }, [token, loading, pendingIds.length, bulkPending, lights]);
+  }, [token, loading, pendingIds.length, bulkPending]);
 
   async function signIn(username, password) {
     const result = await apiRequest("/api/auth/login", "", {
@@ -184,6 +248,30 @@ export default function App() {
     });
     sessionStorage.setItem("smart-home-token", result.token);
     setToken(result.token);
+  }
+
+  async function addLight({ name, room, color }) {
+    setError("");
+    const result = await apiRequest("/api/lights", token, {
+      method: "POST",
+      body: JSON.stringify({ name, room, color }),
+    });
+    setLights((current) => [...current, result.light]);
+    setColorDrafts((current) => ({ ...current, [result.light.id]: result.light.color }));
+    setNewDevice({ id: result.light.id, name: result.light.name, deviceKey: result.deviceKey });
+    setShowAddLight(false);
+  }
+
+  async function copyDeviceKey() {
+    if (!newDevice) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(newDevice.deviceKey);
+      setError("");
+    } catch {
+      setError("Could not copy automatically. Select and copy the device key below.");
+    }
   }
 
   async function updateLight(lightId, changes) {
@@ -196,6 +284,7 @@ export default function App() {
     );
     setColorDrafts((current) => ({ ...current, [updatedLight.id]: updatedLight.color }));
     setConnectionError(false);
+    setError("");
   }
 
   async function runLightUpdate(lightId, changes) {
@@ -228,6 +317,7 @@ export default function App() {
         ...Object.fromEntries(updatedLights.map((light) => [light.id, light.color])),
       }));
       setConnectionError(false);
+      setError("");
     } catch (updateError) {
       setError(updateError.message);
       setConnectionError(true);
@@ -255,6 +345,9 @@ export default function App() {
             <span className={loading || connectionError ? "connection-waiting" : ""} />
             {loading ? "Connecting to database" : connectionError ? "Connection issue" : "PostgreSQL connected"}
           </span>
+          <button className="sign-out" type="button" onClick={() => setShowAddLight((shown) => !shown)}>
+            {showAddLight ? "Cancel add" : "Add light"}
+          </button>
           <button className="sign-out" type="button" onClick={signOut}>Sign out</button>
         </div>
       </header>
@@ -278,6 +371,31 @@ export default function App() {
       </section>
 
       {error && <p className="error-message" role="alert">{error}</p>}
+
+      {showAddLight && (
+        <AddLightForm
+          onCreate={addLight}
+          onCancel={() => setShowAddLight(false)}
+        />
+      )}
+
+      {newDevice && (
+        <section className="device-key-panel" aria-labelledby="device-key-heading">
+          <div className="device-key-copy">
+            <p className="eyebrow">SAVE THIS KEY NOW</p>
+            <h2 id="device-key-heading">Pair {newDevice.name}</h2>
+            <p>This key is only shown once. Put it in that ESP32&apos;s private <code>secrets.h</code> file with this light ID.</p>
+            <dl className="device-credentials">
+              <div><dt>Light ID</dt><dd><code>{newDevice.id}</code></dd></div>
+              <div><dt>Device API key</dt><dd><code className="device-key">{newDevice.deviceKey}</code></dd></div>
+            </dl>
+          </div>
+          <div className="form-actions">
+            <button className="button button-on" type="button" onClick={copyDeviceKey}>Copy key</button>
+            <button className="button button-off" type="button" onClick={() => setNewDevice(null)}>Done</button>
+          </div>
+        </section>
+      )}
 
       <section className="light-grid" aria-label="Individual lights">
         {loading ? (
